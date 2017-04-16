@@ -1,0 +1,61 @@
+*{
+    padding: 0;
+    margin:0;
+}
+html, body{
+    height:100%;
+    width:100%;
+    background: #ccc;
+}
+a{
+    text-decoration: none;
+}
+li{
+    list-style: none;
+}
+img{
+    border:none;
+}
+
+.contact{
+    border:1px solid blue;
+    position: fixed;
+    left:0;
+    top:200px;
+    height: 200px;
+    width: 50px;
+}
+.text{
+    position: absolute;
+    left:10px;
+    top:36%;
+    width: 10px;
+}
+.contact-img img{
+    position: absolute;
+    left:50%;
+    top:20%;
+    transition: all 0.5s;
+    /*z-index: -100;*/
+}
+.nav-wrap{
+    position: fixed;
+    right: 10%;
+    top:300px;
+}
+.nav-pills>li{
+    float: none;
+}
+.page{
+    height:100%;
+    width:100%;
+}
+.page1{
+    background: green;
+}
+.page2{
+    background: blue;
+}
+.page3{
+    background: red;
+}
