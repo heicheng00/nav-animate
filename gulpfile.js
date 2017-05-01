@@ -1,174 +1,139 @@
-// generated on 2016-09-03 using generator-webapp 2.1.0
-const gulp = require('gulp');
-const gulpLoadPlugins = require('gulp-load-plugins');
-const browserSync = require('browser-sync');
-const del = require('del');
-const wiredep = require('wiredep').stream;
+/**
+ * Created by warren on 2017/4/30.
+ */
+var gulp = require("gulp"),
+    compass = require('gulp-compass'),
+    browserSync = require('browser-sync'),
+    reload = browserSync.reload,
+    del = require('del'),
+    spritesmith = require('gulp.spritesmith'),
+    imagemin = require('gulp-imagemin'),
+    connect = require('gulp-connect'),
+    cssver = require('gulp-make-css-url-version'),
+    cache = require('gulp-cache'),
+    minifycss = require('gulp-minify-css'),
+    uglify = require('gulp-uglify'),
+    concat = require('gulp-concat'),
+    rename = require('gulp-rename'),
+    rev = require('gulp-rev'),
+    sass = require('gulp-sass'),
+    revCollector = require('gulp-rev-collector');
 
-const $ = gulpLoadPlugins();
-const reload = browserSync.reload;
 
-gulp.task('styles', () => {
-  return gulp.src('app/styles/*.scss')
-    .pipe($.plumber())
-    .pipe($.sourcemaps.init())
-    .pipe($.sass.sync({
-      outputStyle: 'expanded',
-      precision: 10,
-      includePaths: ['.']
-    }).on('error', $.sass.logError))
-    .pipe($.autoprefixer({browsers: ['> 1%', 'last 2 versions', 'Firefox ESR']}))
-    .pipe($.sourcemaps.write())
-    .pipe(gulp.dest('.tmp/styles'))
-    .pipe(reload({stream: true}));
-});
-
-gulp.task('scripts', () => {
-  return gulp.src('app/scripts/**/*.js')
-    .pipe($.plumber())
-    .pipe($.sourcemaps.init())
-    .pipe($.babel())
-    .pipe($.sourcemaps.write('.'))
-    .pipe(gulp.dest('.tmp/scripts'))
-    .pipe(reload({stream: true}));
-});
-
-function lint(files, options) {
-  return gulp.src(files)
-    .pipe(reload({stream: true, once: true}))
-    .pipe($.eslint(options))
-    .pipe($.eslint.format())
-    .pipe($.if(!browserSync.active, $.eslint.failAfterError()));
-}
-
-gulp.task('lint', () => {
-  return lint('app/scripts/**/*.js', {
-    fix: true
-  })
-    .pipe(gulp.dest('app/scripts'));
-});
-gulp.task('lint:test', () => {
-  return lint('test/spec/**/*.js', {
-    fix: true,
-    env: {
-      mocha: true
+/**
+ *  gulp-rev 加md5后缀
+ *  gulp-rev-collector 路径替换
+ * */
+var path = {
+    //开发环境
+    dev: {
+        html: './app',
+        sass: './app/sass',
+        css: './app/css',
+        js: './app/js',
+        images: './app/images'
+    },
+    //发布环境
+    dist: {
+        html: './app/dist',
+        sass: './app/dist/sass',
+        css: './app/dist/css',
+        js: './app/dist/js',
+        images: './app/dist/images'
     }
-  })
-    .pipe(gulp.dest('test/spec/**/*.js'));
+
+};
+//定义web服务模块  有了browser-sync应该不用这个模块了
+//gulp.task('webserve', function () {
+//    connect.server({
+//        livereload:true,
+//        port:9000
+//    })
+//})
+
+// 浏览器自动刷新
+gulp.task('serve', function () {
+    browserSync({
+        server: {
+            baseDir: './app'
+        },
+        port: 8000
+
+    });
+    gulp.watch(path.dev.sass + "/*.scss", ['compass']);
+    gulp.watch(path.dev.html + "/*.html", ['html']);
+});
+//配置 spritesmith 自动生成雪碧图 自己生成跟图片一样的宽高
+gulp.task('sprite', ['del', 'html'], function () {
+    var spriteData = gulp.src(path.dev.images + '/sprites/*.png')
+        .pipe(spritesmith({
+            imgName: 'images/sprite.png',
+            cssName: 'css/sprite.css'
+        }));
+    return spriteData.pipe(gulp.dest(path.dist.html));
+})
+
+//配置compass 自动生成雪碧图 自己不能生成宽高
+gulp.task('compass', ['del'], function () {
+    gulp.src(path.dev.sass + '/*.scss')
+        .pipe(compass({
+            config_file: './app/config.rb',
+            sass: path.dev.sass,  //scss文件来源目录
+            css: path.dev.css,   // css文件生成目录
+            image: path.dev.images  //用于生成雪碧图的路径
+        }))
+        .pipe(concat('base.css'))
+        .pipe(minifycss())
+        .pipe(rename('base.min.css'))
+        .pipe(rev())
+        .pipe(gulp.dest(path.dev.css))
+        .pipe(gulp.dest(path.dist.css))
+        //.pipe(cssver())
+        .pipe(rev.manifest())// 生成 rev-manifest.json
+        .pipe(gulp.dest('app/rev-css'))
+        .pipe(reload({stream: true}));
+});
+//修改index.html引用的 css js文件名
+gulp.task('rev-html',['compass'], function () {
+    gulp.src(['app/rev-css/*.json', path.dev.html+'/*.html'])
+        .pipe(revCollector())
+        .pipe(gulp.dest(path.dist.html));
+
+    gulp.run('html');
+})
+gulp.task('sass', function () {
+    return gulp.src(path.dev.sass+'/*.scss')
+        .pipe(sass().on('error', sass.logError))
+        .pipe(gulp.dest(path.dev.css));
+})
+
+gulp.task('html', ['del'], function () {
+    gulp.src(path.dev.html + '/*.html')
+        .pipe(gulp.dest(path.dist.html))
+        .pipe(reload({stream: true}))
 });
 
-gulp.task('html', ['styles', 'scripts'], () => {
-  return gulp.src('app/*.html')
-    .pipe($.useref({searchPath: ['.tmp', 'app', '.']}))
-    .pipe($.if('*.js', $.uglify()))
-    .pipe($.if('*.css', $.cssnano({safe: true, autoprefixer: false})))
-    .pipe($.if('*.html', $.htmlmin({collapseWhitespace: true})))
-    .pipe(gulp.dest('dist'));
+
+
+gulp.task('image', function () {
+    gulp.src(path.dev.images + '/*.png')
+        .pipe(cache(imagemin()))
+        .pipe(reload({stream: true}))
+        .pipe(gulp.dest(path.dist.image));
+})
+gulp.task('del', function () {
+    return del.sync([path.dist.html, path.dev.images + '/*.png', path.dev.css]);
 });
 
-gulp.task('images', () => {
-  return gulp.src('app/images/**/*')
-    .pipe($.cache($.imagemin({
-      progressive: true,
-      interlaced: true,
-      // don't remove IDs from SVGs, they are often used
-      // as hooks for embedding and styling
-      svgoPlugins: [{cleanupIDs: false}]
-    })))
-    .pipe(gulp.dest('dist/images'));
+//默认任务
+gulp.task('default', ['del', 'serve', 'compass','html'], function () {
+
 });
 
-gulp.task('fonts', () => {
-  return gulp.src(require('main-bower-files')('**/*.{eot,svg,ttf,woff,woff2}', function (err) {})
-    .concat('app/fonts/**/*'))
-    .pipe(gulp.dest('.tmp/fonts'))
-    .pipe(gulp.dest('dist/fonts'));
-});
 
-gulp.task('extras', () => {
-  return gulp.src([
-    'app/*.*',
-    '!app/*.html'
-  ], {
-    dot: true
-  }).pipe(gulp.dest('dist'));
-});
+gulp.task('build', ['del']);
 
-gulp.task('clean', del.bind(null, ['.tmp', 'dist']));
 
-gulp.task('serve', ['styles', 'scripts', 'fonts'], () => {
-  browserSync({
-    notify: false,
-    port: 9000,
-    server: {
-      baseDir: ['.tmp', 'app'],
-      routes: {
-        '/bower_components': 'bower_components'
-      }
-    }
-  });
 
-  gulp.watch([
-    'app/*.html',
-    'app/images/**/*',
-    '.tmp/fonts/**/*'
-  ]).on('change', reload);
 
-  gulp.watch('app/styles/**/*.scss', ['styles']);
-  gulp.watch('app/scripts/**/*.js', ['scripts']);
-  gulp.watch('app/fonts/**/*', ['fonts']);
-  gulp.watch('bower.json', ['wiredep', 'fonts']);
-});
 
-gulp.task('serve:dist', () => {
-  browserSync({
-    notify: false,
-    port: 9000,
-    server: {
-      baseDir: ['dist']
-    }
-  });
-});
-
-gulp.task('serve:test', ['scripts'], () => {
-  browserSync({
-    notify: false,
-    port: 9000,
-    ui: false,
-    server: {
-      baseDir: 'test',
-      routes: {
-        '/scripts': '.tmp/scripts',
-        '/bower_components': 'bower_components'
-      }
-    }
-  });
-
-  gulp.watch('app/scripts/**/*.js', ['scripts']);
-  gulp.watch('test/spec/**/*.js').on('change', reload);
-  gulp.watch('test/spec/**/*.js', ['lint:test']);
-});
-
-// inject bower components
-gulp.task('wiredep', () => {
-  gulp.src('app/styles/*.scss')
-    .pipe(wiredep({
-      ignorePath: /^(\.\.\/)+/
-    }))
-    .pipe(gulp.dest('app/styles'));
-
-  gulp.src('app/*.html')
-    .pipe(wiredep({
-      exclude: ['bootstrap-sass'],
-      ignorePath: /^(\.\.\/)*\.\./
-    }))
-    .pipe(gulp.dest('app'));
-});
-
-gulp.task('build', ['lint', 'html', 'images', 'fonts', 'extras'], () => {
-  return gulp.src('dist/**/*').pipe($.size({title: 'build', gzip: true}));
-});
-
-gulp.task('default', ['clean'], () => {
-  gulp.start('build');
-});
